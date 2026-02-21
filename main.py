@@ -23,7 +23,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home(): 
-    return "AI Adaptive Bot V4.3 Running"
+    return "AI Adaptive Bot V5.0 Running"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -95,45 +95,52 @@ def send_telegram_message(text):
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     requests.post(url, json=payload)
 
-def format_signal_card(symbol, action, price, rsi, tp, sl, chop):
+def format_signal_card(symbol, action, price, rsi, tp1, tp2, sl, chop):
     fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
     flags = get_flags(symbol)
     
+    # Calculate simulated Trend Power from Chop Index
+    trend_power = int(100 - chop) if chop < 100 else 10
+    
     if action == "BUY":
-        icon, side, trend = "🟢", "L O N G", "📈"
+        header = "🔺 💎 SNIPER ENTRY: BUY 💎 🔺"
+        side, trend_text = "LONG 🟢", "Bullish Uptrend"
+        squares = "🟩🟩🟩🟩🟩" if trend_power > 50 else "🟩🟩🟩"
+        conf = 95 if trend_power > 50 else 75
     elif action == "SELL":
-        icon, side, trend = "🔴", "S H O R T", "📉"
+        header = "🔻 💎 SNIPER ENTRY: SELL 💎 🔻"
+        side, trend_text = "SHORT 🔴", "Bearish Downtrend"
+        squares = "🟥🟥🟥🟥🟥" if trend_power > 50 else "🟥🟥🟥"
+        conf = 95 if trend_power > 50 else 75
     else:
-        icon, side, trend = "⚪", "N E U T R A L", "⚖️"
-
-    market_state = "Trending" if chop < 50 else "Choppy"
+        header = "⚖️ 💎 MARKET WATCH: WAIT 💎 ⚖️"
+        side, trend_text = "NEUTRAL ⚪", "Consolidating"
+        squares = "⬜⬜⬜"
+        conf = 50
 
     if action in ["BUY", "SELL"]:
         targets = (
-            f"🎯 <b>TAKE PROFIT:</b> <code>{tp:{fmt}}</code>\n"
-            f"🛑 <b>STOP LOSS:</b> <code>{sl:{fmt}}</code>"
+            f"🎯 <b>PROFIT TARGETS</b>\n"
+            f"🥇 <b>TP1:</b> <code>{tp1:{fmt}}</code>\n"
+            f"🥈 <b>TP2:</b> <code>{tp2:{fmt}}</code>\n\n"
+            f"🛡️ <b>RISK MANAGEMENT</b>\n"
+            f"🧱 <b>SL:</b> <code>{sl:{fmt}}</code>"
         )
     else:
-        targets = "⏳ <i>Awaiting precise trend alignment.</i>"
+        targets = "⏳ <i>Awaiting precise trend alignment. No trade zone.</i>"
 
     msg = (
-        f"<b>{trend} P R O  S I G N A L {trend}</b>\n\n"
-        
-        f"🌐 <b>ASSET:</b> {flags} <b>{symbol}</b>\n"
-        f"⏱ <b>TF:</b> {TIMEFRAME.upper()}\n\n"
-        
-        f"<b>⬇️ E X E C U T I O N ⬇️</b>\n"
-        f"💥 <b>BIAS:</b> {icon} <b>{side}</b>\n"
-        f"💰 <b>ENTRY:</b> <code>{price:{fmt}}</code>\n\n"
-        
-        f"<b>🎯 R I S K  P L A N 🎯</b>\n"
-        f"{targets}\n\n"
-        
-        f"<b>🤖 A I  D A T A 🤖</b>\n"
-        f"🌡 <b>RSI:</b> {rsi:.1f}\n"
-        f"🌊 <b>STATE:</b> {market_state} ({chop:.1f})\n\n"
-        
-        f"<i>⚠️ Institutional grade analysis requires absolute discipline. Enforce strict lot sizing and protect your capital at all times. ⚠️</i>"
+        f"{header}\n"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️\n"
+        f"┏ {flags} <b>{symbol}</b> 🔶 <b>{side}</b> ┓\n"
+        f"┗ 💵 <b>ENTRY:</b> <code>{price:{fmt}}</code> ┛\n\n"
+        f"📊 <b>HIGH PRECISION INTEL</b>\n"
+        f"• <b>Trend:</b> {trend_text}\n"
+        f"• <b>Trend Power:</b> {trend_power} (Strength)\n"
+        f"• <b>RSI:</b> {rsi:.0f}\n"
+        f"• <b>Signal Strength:</b> {squares} {conf}% CONFIDENCE\n\n"
+        f"{targets}\n"
+        f"〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️〰️"
     )
     return msg
 
@@ -154,22 +161,23 @@ def analyze_markets():
         if price > ema_50 and ema_50 > ema_200:
             action = "BUY"
             sl = price - (atr * 1.5)
-            tp = price + (atr * 2.0)
+            tp1 = price + (atr * 1.0)
+            tp2 = price + (atr * 2.5)
         elif price < ema_50 and ema_50 < ema_200:
             action = "SELL"
             sl = price + (atr * 1.5)
-            tp = price - (atr * 2.0)
+            tp1 = price - (atr * 1.0)
+            tp2 = price - (atr * 2.5)
         else:
             action = "NEUTRAL"
-            sl = 0
-            tp = 0
+            sl = tp1 = tp2 = 0
             
-        msg = format_signal_card(symbol, action, price, rsi, tp, sl, chop)
+        msg = format_signal_card(symbol, action, price, rsi, tp1, tp2, sl, chop)
         send_telegram_message(msg)
         time.sleep(2)
 
 if __name__ == '__main__':
-    startup_msg = "🟢 <b>SYSTEM ONLINE</b>\nAI Adaptive Bot V4.3 is securely connected.\nBroadcasting deep market analysis every 30 minutes."
+    startup_msg = "🟢 <b>SYSTEM ONLINE</b>\nAI Sniper Bot V5.0 is active.\nBroadcasting high-precision intelligence every 30 minutes."
     send_telegram_message(startup_msg)
     
     analyze_markets()
