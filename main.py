@@ -23,7 +23,7 @@ TIMEFRAME = "1h"
 app = Flask(__name__)
 
 @app.route('/')
-def home(): return "AI Sniper Bot V7.2 Running"
+def home(): return "Advance AI Bot V7 Running"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -91,7 +91,7 @@ def send_telegram_message(text):
 def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
     fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
     
-    header_icon, header_txt = "🔹", "AI QUANT SIGNALS"
+    header_icon, header_txt = "🔹", "Advance AI SIGNALS"
     if action == "BUY":
         action_icon, action_txt = "🔼", "BUY"
     elif action == "SELL":
@@ -185,3 +185,4 @@ if __name__ == '__main__':
     scheduler.start()
     
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
