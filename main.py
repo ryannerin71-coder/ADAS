@@ -23,7 +23,7 @@ TIMEFRAME = "1h"
 app = Flask(__name__)
 
 @app.route('/')
-def home(): return "Advance AI Bot V7.1 Running"
+def home(): return "AI Sniper Bot V7.2 Running"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -91,7 +91,7 @@ def send_telegram_message(text):
 def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
     fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
     
-    header_icon, header_txt = "🔹", "Advance AI SIGNALS"
+    header_icon, header_txt = "🔹", "AI QUANT SIGNALS"
     if action == "BUY":
         action_icon, action_txt = "🔼", "BUY"
     elif action == "SELL":
@@ -137,8 +137,7 @@ def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
     msg += f"<b>RSI {rsi:.0f}</b>  – {rsi_desc}\n\n"
     msg += "━" * 20 + "\n"
     msg += f"📈 <b>CONFIDENCE</b>\n"
-    msg += f"{confidence_bar} <b>{confidence}%</b>"
-    
+    msg += f"{confidence_bar} <b>{confidence}%</b>\n\n"
     msg += f"<i>Signals and analysis by Nilesh</i>"
 
     return msg
@@ -176,7 +175,7 @@ def analyze_markets():
         time.sleep(1) 
 
 if __name__ == '__main__':
-    startup_msg = "🔹 <b>AI SIGNALS ONLINE</b>\n" + "━" * 20 + "\n" + "V7.1 Premium UI active.\nScanning markets every 30 mins."
+    startup_msg = "🔹 <b>AI QUANT SIGNALS ONLINE</b>\n" + "━" * 20 + "\n" + "V7.2 Premium UI active.\nScanning markets every 30 mins.\n<i>By Nilesh</i>"
     send_telegram_message(startup_msg)
 
     analyze_markets()
@@ -186,6 +185,3 @@ if __name__ == '__main__':
     scheduler.start()
     
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
-
-
