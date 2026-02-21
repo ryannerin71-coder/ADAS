@@ -5,8 +5,8 @@ import numpy as np
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask
-
 from dotenv import load_dotenv
+
 load_dotenv()
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -19,12 +19,11 @@ WATCHLIST = [
 ]
 TIMEFRAME = "1h"
 
-ACTIVE_TRADES = {} 
-TRADE_HISTORY = []
-
 app = Flask(__name__)
+
 @app.route('/')
-def home(): return "AI Adaptive Bot V4.1 Running"
+def home(): 
+    return "AI Adaptive Bot V4.1 Running"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -80,7 +79,7 @@ def fetch_data(symbol):
 
         return df.dropna()
     except Exception as e: 
-        print(f"Fetch Error: {e}")
+        print(f"Fetch Error for {symbol}: {e}")
         return "ERROR"
 
 def get_flags(symbol):
@@ -92,12 +91,18 @@ def get_flags(symbol):
     return f"{flags.get(base, '')}{flags.get(quote, '')}"
 
 def send_telegram_message(text):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("Telegram credentials missing!")
+        return
+        
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     try:
-        requests.post(url, json=payload)
+        response = requests.post(url, json=payload)
+        if response.status_code != 200:
+            print(f"Telegram API Error: {response.text}")
     except Exception as e:
-        print(f"Telegram Error: {e}")
+        print(f"Telegram Request Error: {e}")
 
 def format_signal_card(symbol, signal, price, rsi, ema_trend, tp1, sl, vol_spike, chop):
     header = "🦅 <b>ADAPTIVE SNIPER: BUY</b> 🦅" if signal == "BUY" else "🐻 <b>ADAPTIVE SNIPER: SELL</b> 🐻"
@@ -138,7 +143,6 @@ def analyze_markets():
         chop = latest['chop']
         vol_spike = latest['volume'] > (latest['vol_ma'] * 1.5)
 
-        # Logic: Trending Market (Chop < 50), EMA alignment, RSI not extreme
         if chop < 50:
             if price > ema_50 and ema_50 > ema_200 and rsi < 70 and latest['open'] < latest['close']:
                 sl = price - (atr * 1.5)
@@ -152,10 +156,20 @@ def analyze_markets():
                 msg = format_signal_card(symbol, "SELL", price, rsi, "Bearish", tp, sl, vol_spike, chop)
                 send_telegram_message(msg)
         
-        time.sleep(1) # Prevent API rate limits
+        time.sleep(1)
 
 if __name__ == '__main__':
+    # 1. Send single startup confirmation message
+    startup_msg = "🟢 <b>SYSTEM ALERT</b>\nAI Adaptive Bot V4.1 is now ONLINE.\nScanning markets every 30 minutes."
+    send_telegram_message(startup_msg)
+    
+    # 2. Force first immediate scan
+    analyze_markets()
+    
+    # 3. Schedule recurring scan every 30 minutes
     scheduler = BackgroundScheduler()
-    scheduler.add_job(func=analyze_markets, trigger="interval", minutes=60)
+    scheduler.add_job(func=analyze_markets, trigger="interval", minutes=30)
     scheduler.start()
+    
+    # 4. Start Flask server
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
