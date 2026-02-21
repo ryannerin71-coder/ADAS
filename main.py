@@ -139,7 +139,7 @@ def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
     msg += f"📈 <b>CONFIDENCE</b>\n"
     msg += f"{confidence_bar} <b>{confidence}%</b>"
     
-    msg += f"<b>Created by Nilesh</b>\n\n"
+    msg += f"<i>Signals and analysis by Nilesh</i>"
 
     return msg
 
@@ -186,5 +186,6 @@ if __name__ == '__main__':
     scheduler.start()
     
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+
 
 
