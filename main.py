@@ -68,4 +68,114 @@ def fetch_data(symbol):
         df['rsi'] = 100 - (100 / (1 + rs))
         
         df['tr0'] = abs(df['high'] - df['low'])
-        df
+        df['tr1'] = abs(df['high'] - df['close'].shift())
+        df['tr2'] = abs(df['low'] - df['close'].shift())
+        df['atr'] = df[['tr0', 'tr1', 'tr2']].max(axis=1).rolling(14).mean()
+
+        df['chop'] = calculate_chop_index(df)
+
+        return df.dropna()
+    except Exception as e: 
+        print(f"Fetch Error for {symbol}: {e}")
+        return "ERROR"
+
+def get_flags(symbol):
+    base, quote = symbol.split('/')
+    flags = {
+        "EUR": "🇪🇺", "USD": "🇺🇸", "GBP": "🇬🇧", "JPY": "🇯🇵",
+        "AUD": "🇦🇺", "CAD": "🇨🇦", "XAU": "🥇", "BTC": "🅱️"
+    }
+    return f"{flags.get(base, '')}{flags.get(quote, '')}"
+
+def send_telegram_message(text):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+        
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+    requests.post(url, json=payload)
+
+def format_signal_card(symbol, action, price, rsi, tp, sl, chop):
+    fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
+    flags = get_flags(symbol)
+    
+    if action == "BUY":
+        icon, side, trend = "🟢", "L O N G", "📈"
+    elif action == "SELL":
+        icon, side, trend = "🔴", "S H O R T", "📉"
+    else:
+        icon, side, trend = "⚪", "N E U T R A L", "⚖️"
+
+    market_state = "Trending" if chop < 50 else "Choppy"
+
+    if action in ["BUY", "SELL"]:
+        targets = (
+            f"🎯 <b>TAKE PROFIT:</b> <code>{tp:{fmt}}</code>\n"
+            f"🛑 <b>STOP LOSS:</b> <code>{sl:{fmt}}</code>"
+        )
+    else:
+        targets = "⏳ <i>Awaiting precise trend alignment.</i>"
+
+    msg = (
+        f"<b>{trend} P R O  S I G N A L {trend}</b>\n\n"
+        
+        f"🌐 <b>ASSET:</b> {flags} <b>{symbol}</b>\n"
+        f"⏱ <b>TF:</b> {TIMEFRAME.upper()}\n\n"
+        
+        f"<b>⬇️ E X E C U T I O N ⬇️</b>\n"
+        f"💥 <b>BIAS:</b> {icon} <b>{side}</b>\n"
+        f"💰 <b>ENTRY:</b> <code>{price:{fmt}}</code>\n\n"
+        
+        f"<b>🎯 R I S K  P L A N 🎯</b>\n"
+        f"{targets}\n\n"
+        
+        f"<b>🤖 A I  D A T A 🤖</b>\n"
+        f"🌡 <b>RSI:</b> {rsi:.1f}\n"
+        f"🌊 <b>STATE:</b> {market_state} ({chop:.1f})\n\n"
+        
+        f"<i>⚠️ Institutional grade analysis requires absolute discipline. Enforce strict lot sizing and protect your capital at all times. ⚠️</i>"
+    )
+    return msg
+
+def analyze_markets():
+    print("Scanning all markets...")
+    for symbol in WATCHLIST:
+        df = fetch_data(symbol)
+        if isinstance(df, str): continue
+            
+        latest = df.iloc[-1]
+        price = latest['close']
+        rsi = latest['rsi']
+        ema_50 = latest['ema_50']
+        ema_200 = latest['ema_200']
+        atr = latest['atr']
+        chop = latest['chop']
+
+        if price > ema_50 and ema_50 > ema_200:
+            action = "BUY"
+            sl = price - (atr * 1.5)
+            tp = price + (atr * 2.0)
+        elif price < ema_50 and ema_50 < ema_200:
+            action = "SELL"
+            sl = price + (atr * 1.5)
+            tp = price - (atr * 2.0)
+        else:
+            action = "NEUTRAL"
+            sl = 0
+            tp = 0
+            
+        msg = format_signal_card(symbol, action, price, rsi, tp, sl, chop)
+        send_telegram_message(msg)
+        time.sleep(2)
+
+if __name__ == '__main__':
+    startup_msg = "🟢 <b>SYSTEM ONLINE</b>\nAI Adaptive Bot V4.3 is securely connected.\nBroadcasting deep market analysis every 30 minutes."
+    send_telegram_message(startup_msg)
+    
+    analyze_markets()
+    
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(func=analyze_markets, trigger="interval", minutes=30)
+    scheduler.start()
+    
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
