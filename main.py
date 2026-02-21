@@ -23,7 +23,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home(): 
-    return "AI Adaptive Bot V4.2 Running"
+    return "AI Adaptive Bot V4.3 Running"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -68,104 +68,4 @@ def fetch_data(symbol):
         df['rsi'] = 100 - (100 / (1 + rs))
         
         df['tr0'] = abs(df['high'] - df['low'])
-        df['tr1'] = abs(df['high'] - df['close'].shift())
-        df['tr2'] = abs(df['low'] - df['close'].shift())
-        df['atr'] = df[['tr0', 'tr1', 'tr2']].max(axis=1).rolling(14).mean()
-
-        df['chop'] = calculate_chop_index(df)
-
-        return df.dropna()
-    except Exception as e: 
-        print(f"Fetch Error for {symbol}: {e}")
-        return "ERROR"
-
-def get_flags(symbol):
-    base, quote = symbol.split('/')
-    flags = {
-        "EUR": "🇪🇺", "USD": "🇺🇸", "GBP": "🇬🇧", "JPY": "🇯🇵",
-        "AUD": "🇦🇺", "CAD": "🇨🇦", "XAU": "🥇", "BTC": "🅱️"
-    }
-    return f"{flags.get(base, '')}{flags.get(quote, '')}"
-
-def send_telegram_message(text):
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-        
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
-    requests.post(url, json=payload)
-
-def format_signal_card(symbol, action, price, rsi, tp, sl, chop):
-    fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
-    
-    if action == "BUY":
-        icon, side = "🟢", "LONG"
-    elif action == "SELL":
-        icon, side = "🔴", "SHORT"
-    else:
-        icon, side = "⚪", "NEUTRAL"
-
-    market_state = "Trending" if chop < 50 else "Choppy"
-
-    if action in ["BUY", "SELL"]:
-        targets = f"🛑 <b>SL:</b> <code>{sl:{fmt}}</code>\n✅ <b>TP:</b> <code>{tp:{fmt}}</code>"
-    else:
-        targets = "⏳ <i>Waiting for clear trend crossover.</i>"
-
-    msg = (
-        f"🏛 <b>MARKET INTEL: {get_flags(symbol)} {symbol}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚡ <b>ACTION:</b> {icon} <b>{side}</b>\n"
-        f"🏷 <b>PRICE:</b> <code>{price:{fmt}}</code>\n\n"
-        f"📊 <b>TECHNICALS</b>\n"
-        f"• RSI: {rsi:.1f}\n"
-        f"• Condition: {market_state} (Chop: {chop:.1f})\n\n"
-        f"🎯 <b>TRADE PLAN</b>\n"
-        f"{targets}\n"
-        f"━━━━━━━━━━━━━━━━━━━━"
-    )
-    return msg
-
-def analyze_markets():
-    print("Scanning all markets...")
-    for symbol in WATCHLIST:
-        df = fetch_data(symbol)
-        if isinstance(df, str): continue
-            
-        latest = df.iloc[-1]
-        price = latest['close']
-        rsi = latest['rsi']
-        ema_50 = latest['ema_50']
-        ema_200 = latest['ema_200']
-        atr = latest['atr']
-        chop = latest['chop']
-
-        # Determine bias for ALL pairs
-        if price > ema_50 and ema_50 > ema_200:
-            action = "BUY"
-            sl = price - (atr * 1.5)
-            tp = price + (atr * 2.0)
-        elif price < ema_50 and ema_50 < ema_200:
-            action = "SELL"
-            sl = price + (atr * 1.5)
-            tp = price - (atr * 2.0)
-        else:
-            action = "NEUTRAL"
-            sl = 0
-            tp = 0
-            
-        msg = format_signal_card(symbol, action, price, rsi, tp, sl, chop)
-        send_telegram_message(msg)
-        time.sleep(2) # Paused slightly longer to prevent Telegram spam limits
-
-if __name__ == '__main__':
-    startup_msg = "🟢 <b>SYSTEM ONLINE</b>\nAI Adaptive Bot V4.2 is active.\nBroadcasting all pairs every 30 minutes."
-    send_telegram_message(startup_msg)
-    
-    analyze_markets()
-    
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(func=analyze_markets, trigger="interval", minutes=30)
-    scheduler.start()
-    
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+        df
