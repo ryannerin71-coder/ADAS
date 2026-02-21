@@ -1,0 +1,6 @@
+requests==2.31.0
+pandas==2.2.0
+numpy==1.26.4
+APScheduler==3.10.4
+Flask==3.0.2
+python-dotenv==1.0.1
