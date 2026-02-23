@@ -20,10 +20,16 @@ WATCHLIST = [
 ]
 TIMEFRAME = "1h"
 
+# --- STATE MANAGEMENT ---
+ACTIVE_TRADES = {}
+STATS = {"wins": 0, "losses": 0}
+
 app = Flask(__name__)
 
 @app.route('/')
-def home(): return "Advance AI Bot V7 Running"
+def home(): 
+    win_rate = (STATS["wins"] / (STATS["wins"] + STATS["losses"]) * 100) if (STATS["wins"] + STATS["losses"]) > 0 else 0
+    return f"AI Sniper Bot V8.0 Running | Live Win Rate: {win_rate:.1f}%"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -91,7 +97,7 @@ def send_telegram_message(text):
 def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
     fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
     
-    header_icon, header_txt = "🔹", "Advance AI SIGNALS"
+    header_icon, header_txt = "🔹", "AI QUANT SIGNALS"
     if action == "BUY":
         action_icon, action_txt = "🔼", "BUY"
     elif action == "SELL":
@@ -142,8 +148,73 @@ def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
 
     return msg
 
+def format_closure_card(symbol, action, result_type, exit_price, pips):
+    fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
+    
+    total_trades = STATS['wins'] + STATS['losses']
+    win_rate = (STATS['wins'] / total_trades) * 100 if total_trades > 0 else 0
+
+    if result_type == "WIN":
+        header = "✅ <b>TRADE WON (TP HIT)</b> ✅"
+        result_str = f"➕ {pips:.1f} Pips"
+    else:
+        header = "❌ <b>TRADE LOST (SL HIT)</b> ❌"
+        result_str = f"➖ {pips:.1f} Pips"
+
+    msg = (
+        f"{header}\n"
+        f"━" * 20 + "\n"
+        f"<b>PAIR:</b> <code>{symbol}</code> ({action})\n"
+        f"<b>EXIT:</b> <code>{exit_price:{fmt}}</code>\n"
+        f"<b>RESULT:</b> {result_str}\n\n"
+        f"📊 <b>LIVE SYSTEM STATS</b>\n"
+        f"Wins: {STATS['wins']} | Losses: {STATS['losses']}\n"
+        f"🏆 <b>Win Rate: {win_rate:.1f}%</b>\n"
+        f"━" * 20 + "\n"
+        f"<i>Monitored by Nilesh</i>"
+    )
+    return msg
+
+def check_active_trades(symbol, current_price):
+    if symbol not in ACTIVE_TRADES:
+        return
+        
+    trade = ACTIVE_TRADES[symbol]
+    action = trade['action']
+    tp1 = trade['tp1']
+    sl = trade['sl']
+    entry = trade['entry']
+    
+    # Calculate rough pips based on asset class
+    multiplier = 100 if "JPY" in symbol else 10 if "XAU" in symbol else 1 if "BTC" in symbol else 10000
+    
+    closed = False
+    result_type = ""
+    
+    if action == "BUY":
+        if current_price >= tp1:
+            closed, result_type = True, "WIN"
+            STATS['wins'] += 1
+        elif current_price <= sl:
+            closed, result_type = True, "LOSS"
+            STATS['losses'] += 1
+            
+    elif action == "SELL":
+        if current_price <= tp1:
+            closed, result_type = True, "WIN"
+            STATS['wins'] += 1
+        elif current_price >= sl:
+            closed, result_type = True, "LOSS"
+            STATS['losses'] += 1
+
+    if closed:
+        pips = abs(current_price - entry) * multiplier
+        msg = format_closure_card(symbol, action, result_type, current_price, pips)
+        send_telegram_message(msg)
+        del ACTIVE_TRADES[symbol] # Remove from active tracking
+
 def analyze_markets():
-    print("Scanning markets...")
+    print("Scanning markets & checking open trades...")
     for symbol in WATCHLIST:
         df = fetch_data(symbol)
         if isinstance(df, str): continue
@@ -156,26 +227,35 @@ def analyze_markets():
         atr = latest['atr']
         chop = latest['chop']
 
-        if price > ema_50 and ema_50 > ema_200:
-            action = "BUY"
-            sl = price - (atr * 1.5)
-            tp1 = price + (atr * 1.0)
-            tp2 = price + (atr * 2.5)
-        elif price < ema_50 and ema_50 < ema_200:
-            action = "SELL"
-            sl = price + (atr * 1.5)
-            tp1 = price - (atr * 1.0)
-            tp2 = price - (atr * 2.5)
-        else:
-            action = "NEUTRAL"
-            sl = tp1 = tp2 = 0
-            
-        msg = format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl)
-        send_telegram_message(msg)
+        # 1. Check existing open trades against the new price
+        check_active_trades(symbol, price)
+
+        # 2. Look for new signals if we aren't already in a trade for this pair
+        if symbol not in ACTIVE_TRADES:
+            if price > ema_50 and ema_50 > ema_200:
+                action = "BUY"
+                sl = price - (atr * 1.5)
+                tp1 = price + (atr * 1.0)
+                tp2 = price + (atr * 2.5)
+                
+                ACTIVE_TRADES[symbol] = {'action': action, 'entry': price, 'tp1': tp1, 'sl': sl}
+                msg = format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl)
+                send_telegram_message(msg)
+                
+            elif price < ema_50 and ema_50 < ema_200:
+                action = "SELL"
+                sl = price + (atr * 1.5)
+                tp1 = price - (atr * 1.0)
+                tp2 = price - (atr * 2.5)
+                
+                ACTIVE_TRADES[symbol] = {'action': action, 'entry': price, 'tp1': tp1, 'sl': sl}
+                msg = format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl)
+                send_telegram_message(msg)
+                
         time.sleep(1) 
 
 if __name__ == '__main__':
-    startup_msg = "🔹 <b>AI QUANT SIGNALS ONLINE</b>\n" + "━" * 20 + "\n" + "V7.2 Premium UI active.\nScanning markets every 30 mins.\n<i>By Nilesh</i>"
+    startup_msg = "🔹 <b>AI QUANT SIGNALS V8.0</b>\n" + "━" * 20 + "\n" + "Live trade tracking and Win Rate monitoring is now active.\n<i>By Nilesh</i>"
     send_telegram_message(startup_msg)
 
     analyze_markets()
@@ -185,4 +265,3 @@ if __name__ == '__main__':
     scheduler.start()
     
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
-
