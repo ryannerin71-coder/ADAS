@@ -29,7 +29,7 @@ app = Flask(__name__)
 @app.route('/')
 def home(): 
     win_rate = (STATS["wins"] / (STATS["wins"] + STATS["losses"]) * 100) if (STATS["wins"] + STATS["losses"]) > 0 else 0
-    return f"AI Sniper Bot V8.0 Running | Live Win Rate: {win_rate:.1f}%"
+    return f"AI Sniper Bot V8.1 Running | Live Win Rate: {win_rate:.1f}%"
 
 def calculate_chop_index(df, period=14):
     try:
@@ -150,6 +150,7 @@ def format_signal_card(symbol, action, price, rsi, chop, tp1, tp2, sl):
 
 def format_closure_card(symbol, action, result_type, exit_price, pips):
     fmt = ",.2f" if any(x in symbol for x in ["JPY", "XAU", "BTC"]) else ",.5f"
+    separator = "━" * 20  # Bug fixed here: isolated string multiplier
     
     total_trades = STATS['wins'] + STATS['losses']
     win_rate = (STATS['wins'] / total_trades) * 100 if total_trades > 0 else 0
@@ -163,14 +164,14 @@ def format_closure_card(symbol, action, result_type, exit_price, pips):
 
     msg = (
         f"{header}\n"
-        f"━" * 20 + "\n"
+        f"{separator}\n"
         f"<b>PAIR:</b> <code>{symbol}</code> ({action})\n"
         f"<b>EXIT:</b> <code>{exit_price:{fmt}}</code>\n"
         f"<b>RESULT:</b> {result_str}\n\n"
         f"📊 <b>LIVE SYSTEM STATS</b>\n"
         f"Wins: {STATS['wins']} | Losses: {STATS['losses']}\n"
         f"🏆 <b>Win Rate: {win_rate:.1f}%</b>\n"
-        f"━" * 20 + "\n"
+        f"{separator}\n"
         f"<i>Monitored by Nilesh</i>"
     )
     return msg
@@ -255,7 +256,7 @@ def analyze_markets():
         time.sleep(1) 
 
 if __name__ == '__main__':
-    startup_msg = "🔹 <b>AI QUANT SIGNALS V8.0</b>\n" + "━" * 20 + "\n" + "Live trade tracking and Win Rate monitoring is now active.\n<i>By Nilesh</i>"
+    startup_msg = "🔹 <b>AI QUANT SIGNALS V8.1</b>\n" + "━" * 20 + "\n" + "Live trade tracking and UI formatting fixed.\n<i>By Nilesh</i>"
     send_telegram_message(startup_msg)
 
     analyze_markets()
